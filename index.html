@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>برنامج المحاسبة - Accounting System</title>
+
+    <!-- مكتبات PDF والتقاط الصور (كما هي) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- ✅ إضافة مكتبات Firebase (Realtime Database) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- شاشة Splash -->
+    <div id="splash-screen">
+        <div class="splash-content">
+            <img id="splash-logo" src="" alt="شعار" style="display:none;">
+            <div id="splash-logo-fallback" style="font-size:4rem;">🏢</div>
+            <h1>الحاج سعيد ستاندر</h1>
+            <p>للصناعة والتجارة</p>
+        </div>
+    </div>
+
+    <!-- المحتوى الرئيسي -->
+    <div id="main-app" style="display:none;">
+        <!-- قوائم الاقتراحات -->
+        <datalist id="itemSuggestions"></datalist>
+        <datalist id="customerList"></datalist>
+
+        <div class="app-container">
+            <!-- HEADER -->
+            <header class="app-header">
+                <h1><span>📊</span> نظام المحاسبة</h1>
+                <div class="header-total">
+                    إجمالي المبيعات: <strong id="headerTotalSales">0.00</strong> $
+                </div>
+            </header>
+
+            <!-- DASHBOARD CARDS -->
+            <div class="dashboard-cards">
+                <div class="dash-card active" data-view="new-invoice">
+                    <div class="icon">🧾</div>
+                    <h3>فاتورة جديدة</h3>
+                </div>
+                <div class="dash-card" data-view="invoices">
+                    <div class="icon">📋</div>
+                    <h3>الفواتير</h3>
+                </div>
+                <div class="dash-card" data-view="customers">
+                    <div class="icon">👥</div>
+                    <h3>العملاء</h3>
+                </div>
+                <div class="dash-card" data-view="settings">
+                    <div class="icon">⚙️</div>
+                    <h3>الإعدادات</h3>
+                </div>
+            </div>
+
+            <!-- TOAST -->
+            <div class="toast" id="toast"></div>
+
+            <!-- ================ VIEW: NEW INVOICE ================ -->
+            <div class="view active" id="view-new-invoice">
+                <div class="view-header">
+                    <h2>🧾 إنشاء فاتورة جديدة</h2>
+                </div>
+                <div class="form-card">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>اسم العميل</label>
+                            <input type="text" id="invCustomer" list="customerList" placeholder="أدخل اسم العميل">
+                        </div>
+                        <div class="form-group">
+                            <label>المقيم في</label>
+                            <input type="text" id="invAddress" placeholder="مكان الإقامة">
+                        </div>
+                        <div class="form-group">
+                            <label>التاريخ</label>
+                            <input type="date" id="invDate">
+                        </div>
+                        <div class="form-group">
+                            <label>رقم الفاتورة</label>
+                            <input type="text" id="invNumber" readonly style="background:#f5f5f5;">
+                        </div>
+                    </div>
+
+                    <!-- Items -->
+                    <div class="items-section">
+                        <h4>الأصناف</h4>
+                        <div class="items-table-wrap">
+                            <table class="items-table" id="itemsTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width:18%;">الصنف</th>
+                                        <th style="width:10%;">الكيس</th>
+                                        <th style="width:12%;">عدد القطع</th>
+                                        <th style="width:10%;">الكمية</th>
+                                        <th style="width:12%;">السعر</th>
+                                        <th style="width:14%;">الإجمالي</th>
+                                        <th style="width:12%;">الخصم</th>
+                                        <th style="width:12%;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="itemsBody">
+                                    <!-- JS rows -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="addItemRow()" style="margin-top:8px;">➕ إضافة صنف</button>
+                    </div>
+
+                    <div class="invoice-summary">
+                        <div class="summary-row"><label>المجموع:</label><span class="value" id="subtotalDisplay">0.00</span></div>
+                        <div class="summary-row"><label>حسم (%):</label><input type="number" id="discountInput" value="0" min="0" max="100" step="0.01" style="width:80px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;"></div>
+                        <div class="summary-row"><label>الإجمالي:</label><span class="value" id="totalAfterDiscount">0.00</span></div>
+                        <div class="summary-row"><label>حالة الدفع:</label>
+                            <select id="paymentStatus" style="padding:6px 10px;border:1px solid var(--border);border-radius:4px;min-width:120px;">
+                                <option value="دين كامل">دين كامل</option>
+                                <option value="دين جزئي">دين جزئي</option>
+                                <option value="مدفوعة">مدفوعة</option>
+                            </select>
+                        </div>
+                        <div class="summary-row"><label>المدفوع:</label><input type="number" id="paymentInput" value="0" min="0" style="width:80px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;"></div>
+                        <div class="summary-row"><label>المتبقي:</label><span class="value grand" id="remainingDisplay">0.00</span></div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button class="btn btn-success" onclick="saveInvoice()">💾 حفظ الفاتورة</button>
+                        <button class="btn btn-outline" onclick="clearInvoiceForm()">🔄 تفريغ</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================ VIEW: INVOICES ================ -->
+            <div class="view" id="view-invoices">
+                <div class="view-header">
+                    <h2>📋 جميع الفواتير</h2>
+                    <div class="search-bar">
+                        <input type="text" id="invoiceSearch" placeholder="🔍 بحث برقم الفاتورة أو اسم العميل..." oninput="renderInvoices()">
+                    </div>
+                </div>
+                <div class="table-card"><div id="invoicesContainer"></div></div>
+            </div>
+
+            <!-- ================ VIEW: CUSTOMERS ================ -->
+            <div class="view" id="view-customers">
+                <div class="view-header">
+                    <h2>👥 إدارة العملاء والديون</h2>
+                    <button class="btn btn-primary" onclick="openCustomerModal()">➕ إضافة عميل</button>
+                </div>
+                <div class="stats-container" id="customerStatsContainer"></div>
+                <div class="table-card">
+                    <div class="search-bar">
+                        <input type="text" id="customerSearch" placeholder="🔍 بحث باسم العميل أو رقم الهاتف..." oninput="renderCustomers()">
+                    </div>
+                    <div id="customersContainer"></div>
+                </div>
+            </div>
+
+            <!-- ================ VIEW: SETTINGS ================ -->
+            <div class="view" id="view-settings">
+                <div class="view-header">
+                    <h2>⚙️ الإعدادات</h2>
+                </div>
+                <div class="form-card">
+                    <h3>💾 النسخ الاحتياطي</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 16px;">يمكنك تصدير كافة البيانات أو استيرادها أو حذفها.</p>
+                    
+                    <div class="form-actions">
+                        <button class="btn btn-primary" onclick="exportBackup()">📤 تصدير البيانات</button>
+                        <button class="btn btn-warning" onclick="document.getElementById('importFile').click()">📥 استيراد البيانات</button>
+                        <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importBackup(event)">
+                        <button class="btn btn-danger" onclick="deleteAllData()">🗑️ حذف جميع البيانات</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== PRINT INVOICE OVERLAY ===== -->
+        <div class="print-area" id="printArea">
+            <div class="print-invoice" id="printInvoiceContent"></div>
+        </div>
+
+        <!-- ===== CUSTOMER ADD/EDIT MODAL ===== -->
+        <div class="modal-overlay" id="customerModal">
+            <div class="modal-box">
+                <button class="close-modal" onclick="closeCustomerModal()">✕</button>
+                <h3 id="customerModalTitle">إضافة عميل جديد</h3>
+                <input type="hidden" id="editCustomerId" value="">
+                <div class="form-group" style="margin-bottom:12px;"><label>اسم العميل</label><input type="text" id="custName" placeholder="اسم العميل"></div>
+                <div class="form-group" style="margin-bottom:12px;"><label>رقم الهاتف</label><input type="text" id="custPhone" placeholder="رقم الهاتف"></div>
+                <div class="form-group" style="margin-bottom:12px;"><label>العنوان</label><input type="text" id="custAddress" placeholder="العنوان"></div>
+                <div class="form-actions">
+                    <button class="btn btn-success" onclick="saveCustomer()">💾 حفظ</button>
+                    <button class="btn btn-outline" onclick="closeCustomerModal()">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== CUSTOMER DEBT MANAGEMENT MODAL ===== -->
+        <div class="modal-overlay" id="customerDebtModal">
+            <div class="modal-box" style="max-width:950px; width:95%;">
+                <button class="close-modal" onclick="closeCustomerDebtModal()">✕</button>
+                <div id="customerDebtContent"></div>
+            </div>
+        </div>
+
+        <!-- ===== DELETE CONFIRM MODAL ===== -->
+        <div class="modal-overlay" id="deleteConfirmModal">
+            <div class="modal-box">
+                <button class="close-modal" onclick="closeDeleteConfirmModal()">✕</button>
+                <h3>⚠️ تحذير حذف جميع البيانات</h3>
+                <p style="color: var(--danger); margin: 16px 0;">سيتم حذف جميع الفواتير، العملاء، الدفعات، والأصناف بشكل نهائي. لا يمكن التراجع عن هذه العملية.</p>
+                <div class="form-actions">
+                    <button class="btn btn-danger" onclick="executeDeleteAllData()">🗑️ حذف نهائي</button>
+                    <button class="btn btn-outline" onclick="closeDeleteConfirmModal()">إلغاء</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
