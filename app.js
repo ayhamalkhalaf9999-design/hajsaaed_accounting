@@ -734,19 +734,17 @@ async function generatePDFBlob(invoiceNumber) {
     return pdf.output('blob');
 }
 
+// ✅ تم تعديل هذه الدالة فقط لإظهار الملف بدلاً من التحميل التلقائي
 async function savePDF(invoiceNumber) {
     try {
         showToast('⏳ جاري إنشاء ملف PDF...', 'success');
         const blob = await generatePDFBlob(invoiceNumber);
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `فاتورة-${invoiceNumber}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        showToast('✅ تم حفظ ملف PDF بنجاح');
+        
+        // فتح الملف في نافذة جديدة لضمان رؤيته على جميع الأجهزة
+        window.open(url, '_blank');
+        
+        showToast('✅ تم فتح ملف PDF. إذا لم يفتح، تحقق من التحميلات.');
     } catch (err) {
         showToast('❌ فشل إنشاء ملف PDF', 'error');
         console.error(err);
