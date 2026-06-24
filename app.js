@@ -626,7 +626,7 @@ function editInvoice(id) {
 }
 
 // ============================================================
-// طباعة الفاتورة ومعاينة PDF (مع الترويسة المحسّنة)
+// طباعة الفاتورة ومعاينة PDF (محاذاة تامة بين اليمين واليسار)
 // ============================================================
 function printInvoice(id) {
     const inv = invoices.find(i => i.id === id);
@@ -673,24 +673,27 @@ function printInvoice(id) {
 
     const address = inv.address || (customers.find(c => c.name.toLowerCase() === inv.customer.toLowerCase()) || {}).address || 'غير محدد';
 
-    // تم تعديل الترويسة: خط أكبر وأزرق فاتح، مع تثبيت رقم وتاريخ الفاتورة أسفل العمودين فوق الخط الأزرق
     const html = `
-        <div class="invoice-template">
+        <div class="invoice-template" style="font-size: 1.05rem;">
             ${logoSrc ? `<div class="invoice-watermark"><img src="${logoSrc}" alt="علامة مائية"></div>` : ''}
-            <div class="invoice-header">
-                <div class="header-right" style="display:flex; flex-direction:column; justify-content:space-between;">
-                    <div>
-                        <h2 style="color: #c00; font-size: 2rem; font-weight: 900;">سعيد ستندر</h2>
-                        <p style="font-size:1.3rem; color: var(--primary); margin:2px 0;">للصناعة والتجارة</p>
-                        <p style="font-size:1.3rem; color: var(--primary); margin:2px 0;">قساطل - اكسسوارات صحية</p>
+            <div class="invoice-header" style="display:flex; flex-direction:row; justify-content:space-between; align-items:stretch; gap:15px; flex-wrap:nowrap; width:100%; box-sizing:border-box;">
+                <div class="header-right" style="display:flex; flex-direction:column; justify-content:space-between; flex:1; text-align:right;">
+                    <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-start;">
+                        <h2 style="color: #c00; font-size: 2rem; font-weight: 900; margin:0 0 4px 0;">سعيد ستندر</h2>
+                        <p style="font-size:1.1rem; color: var(--primary); margin:2px 0; line-height:1.8;">للصناعة والتجارة</p>
+                        <p style="font-size:1.1rem; color: var(--primary); margin:2px 0; line-height:1.8;">قساطل - اكسسوارات صحية</p>
                     </div>
                     <p class="invoice-number-header" style="margin-top:auto;">رقم الفاتورة: ${inv.number}</p>
                 </div>
-                <div class="header-center">${logoImg}</div>
-                <div class="header-left" style="display:flex; flex-direction:column; justify-content:space-between;">
-                    <div>
-                        <p style="font-size:1.3rem; color: var(--primary); margin:2px 0;">اعزاز - غربي دوار الساعة</p>
-                        <p style="font-size:1.3rem; color: var(--primary); margin:2px 0;">جانب كازية يا شام</p>
+                <div class="header-center" style="flex:0 0 auto; display:flex; align-items:center; justify-content:center;">
+                    ${logoImg}
+                </div>
+                <div class="header-left" style="display:flex; flex-direction:column; justify-content:space-between; flex:1; text-align:left;">
+                    <div style="flex:1; display:flex; flex-direction:column; justify-content:flex-start;">
+                        <!-- عنصر وهمي لمحاكاة ارتفاع اسم الشركة في اليمين -->
+                        <div style="color: #c00; font-size: 2rem; font-weight: 900; margin:0 0 4px 0; line-height:1.3; visibility:hidden;">سعيد ستندر</div>
+                        <p style="font-size:1.1rem; color: var(--primary); margin:2px 0; line-height:1.8;">اعزاز - غربي دوار الساعة</p>
+                        <p style="font-size:1.1rem; color: var(--primary); margin:2px 0; line-height:1.8;">جانب كازية يا شام</p>
                     </div>
                     <p class="invoice-date-header" style="margin-top:auto;">تاريخ الفاتورة: ${formatDateDisplay(inv.date)}</p>
                 </div>
@@ -762,7 +765,7 @@ async function generatePDFBlob(invoiceNumber) {
     clone.style.overflow = 'hidden';
     clone.style.height = 'auto';
     clone.style.margin = '0';
-    clone.style.padding = '15mm 12mm'; // هوامش: 15mm أعلى/أسفل، 12mm يمين/يسار
+    clone.style.padding = '15mm 12mm';
     clone.style.boxSizing = 'border-box';
     clone.style.backgroundColor = '#ffffff';
 
@@ -772,9 +775,11 @@ async function generatePDFBlob(invoiceNumber) {
         invoiceHeader.style.display = 'flex';
         invoiceHeader.style.flexDirection = 'row';
         invoiceHeader.style.justifyContent = 'space-between';
-        invoiceHeader.style.alignItems = 'stretch'; // نعدل لـ stretch لتمديد الأعمدة
+        invoiceHeader.style.alignItems = 'stretch';
         invoiceHeader.style.gap = '15px';
         invoiceHeader.style.flexWrap = 'nowrap';
+        invoiceHeader.style.width = '100%';
+        invoiceHeader.style.boxSizing = 'border-box';
 
         const headerRight = invoiceHeader.querySelector('.header-right');
         if (headerRight) {
@@ -812,21 +817,21 @@ async function generatePDFBlob(invoiceNumber) {
 
     // ========== التقاط الصورة بجودة عالية (scale: 3) ==========
     const canvas = await html2canvas(clone, {
-        scale: 3,                // دقة عالية جداً
+        scale: 3,
         useCORS: true,
         allowTaint: false,
         logging: false,
         backgroundColor: '#ffffff',
-        width: 210 * 3.779527559,  // عرض A4 بالبكسل
-        height: 297 * 3.779527559 * 1.5 // زيادة الارتفاع لاستيعاب المحتوى بدون قص
+        width: 210 * 3.779527559,
+        height: 297 * 3.779527559 * 1.5
     });
 
     document.body.removeChild(clone);
 
-    // ========== إزالة الفراغ الزائد (إذا كان المحتوى قصيراً) ==========
+    // ========== إزالة الفراغ الزائد ==========
     const croppedCanvas = cropCanvas(canvas);
 
-    const imgData = croppedCanvas.toDataURL('image/jpeg', 0.95); // جودة عالية
+    const imgData = croppedCanvas.toDataURL('image/jpeg', 0.95);
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF('p', 'mm', 'a4', { compress: true });
     const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -850,7 +855,6 @@ async function generatePDFBlob(invoiceNumber) {
     return pdf.output('blob');
 }
 
-// دالة لقص الهامش الفارغ أسفل الصورة
 function cropCanvas(canvas) {
     const ctx = canvas.getContext('2d');
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -892,8 +896,14 @@ async function savePDF(invoiceNumber) {
         showToast('⏳ جاري إنشاء ملف PDF...', 'success');
         const blob = await generatePDFBlob(invoiceNumber);
         const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        showToast('✅ تم فتح ملف PDF');
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = invoiceNumber + '.pdf'; // اسم الملف = رقم الفاتورة
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast('✅ تم حفظ ملف PDF باسم ' + invoiceNumber + '.pdf');
     } catch (err) {
         showToast('❌ فشل إنشاء ملف PDF', 'error');
         console.error(err);
@@ -904,7 +914,7 @@ async function sharePDF(invoiceNumber) {
     try {
         showToast('⏳ جاري تجهيز الملف للمشاركة...', 'success');
         const blob = await generatePDFBlob(invoiceNumber);
-        const file = new File([blob], `فاتورة-${invoiceNumber}.pdf`, { type: 'application/pdf' });
+        const file = new File([blob], invoiceNumber + '.pdf', { type: 'application/pdf' });
 
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
             await navigator.share({ files: [file], title: `فاتورة ${invoiceNumber}`, text: `فاتورة ${invoiceNumber}` });
