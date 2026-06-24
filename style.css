@@ -52,14 +52,9 @@ input, select, textarea {
 /* ===== SPLASH SCREEN ===== */
 #splash-screen {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0; width: 100%; height: 100%;
     background: linear-gradient(135deg, #ffffff 0%, #f0f4f9 100%);
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: flex; justify-content: center; align-items: center;
     z-index: 99999;
     transition: opacity 0.6s ease;
     opacity: 1;
@@ -315,20 +310,6 @@ input, select, textarea {
 .invoice-actions { display: flex; justify-content: center; gap: 16px; margin-top: 20px; flex-wrap: wrap; }
 .invoice-actions .btn { min-width: 100px; }
 
-/* تحسينات الطباعة */
-@media print {
-    @page { size: A4; margin: 15mm; }
-    body { background: #fff; padding: 0; }
-    .app-container, .dashboard-cards, .view-header, .form-card, .toast, .modal-overlay, .print-area { display: none !important; }
-    .print-area { display: flex !important; position: static; background: none; backdrop-filter: none; padding: 0; }
-    .print-invoice { box-shadow: none; border-radius: 0; padding: 0; margin: 0; max-width: 100%; width: 100%; }
-    .invoice-actions { display: none !important; }
-    .invoice-header { border-bottom-color: #000; }
-    .info-box { background: #fff; border: 1px solid #ddd; }
-    .invoice-items-table th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .invoice-watermark { opacity: 0.05 !important; }
-}
-
 /* ====== إحصائيات العملاء ====== */
 .stats-container { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .stat-card { background: var(--card-bg); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 14px 18px; flex: 1 1 180px; text-align: center; }
@@ -402,3 +383,183 @@ input, select, textarea {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.success { background: var(--success); }
 .toast.error { background: var(--danger); }
+
+/* =================================================================
+   🔥 NEW: PRINT-ONLY FIXED LAYOUT (A4) - لا يتأثر بحجم الشاشة
+   ================================================================= */
+@media print {
+    /* إعادة ضبط الصفحة */
+    @page {
+        size: A4;
+        margin: 0; /* سنضع الهوامش داخل الحاوية */
+    }
+
+    /* إخفاء كل شيء ما عدا منطقة الطباعة */
+    body * {
+        visibility: hidden;
+    }
+    .print-area, .print-area * {
+        visibility: visible;
+    }
+    .print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 210mm;
+        min-height: 297mm;
+        background: white;
+        margin: 0;
+        padding: 0;
+        display: block !important;
+        overflow: hidden;
+        backdrop-filter: none;
+        z-index: auto;
+        box-shadow: none;
+    }
+    .print-invoice {
+        width: 190mm;                /* عرض المحتوى مع هامش جانبي */
+        margin: 10mm auto;           /* توسيط مع هوامش */
+        padding: 0;
+        box-shadow: none;
+        border-radius: 0;
+        max-width: none;
+        background: white;
+    }
+    .invoice-template {
+        width: 100%;
+        background: white;
+    }
+
+    /* ترويسة الفاتورة */
+    .invoice-header {
+        display: flex !important;
+        flex-direction: row !important;  /* يبقى أفقي */
+        justify-content: space-between !important;
+        align-items: center !important;
+        text-align: inherit !important;
+        padding-bottom: 10mm;
+        margin-bottom: 10mm;
+        border-bottom: 2px solid black;
+    }
+    .header-right {
+        text-align: right !important;
+        flex: 1 !important;
+    }
+    .header-center {
+        flex: 0 0 auto !important;
+    }
+    .header-left {
+        text-align: left !important;
+        flex: 1 !important;
+    }
+    .header-right h2 {
+        font-size: 24pt;
+        color: #c00;
+    }
+    .header-right p {
+        font-size: 11pt;
+        margin: 2px 0;
+    }
+    .header-logo {
+        max-height: 3cm;
+        max-width: 5cm;
+    }
+    .invoice-number-header, .invoice-date-header {
+        font-size: 12pt;
+        font-weight: bold;
+        margin-top: 5mm;
+    }
+
+    /* تفاصيل العميل */
+    .customer-details {
+        background: #f5f5f5;
+        padding: 5mm;
+        margin: 10mm 0;
+        font-size: 12pt;
+        border-radius: 2mm;
+    }
+
+    /* جدول الأصناف */
+    .invoice-items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 10mm 0;
+        font-size: 11pt;
+        page-break-inside: avoid;
+    }
+    .invoice-items-table th {
+        background: #e8f0fe !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        padding: 4mm;
+        border: 0.5mm solid #ccc;
+        font-weight: bold;
+        text-align: center;
+    }
+    .invoice-items-table td {
+        padding: 3mm;
+        border: 0.5mm solid #ccc;
+        text-align: center;
+    }
+
+    /* الإجماليات */
+    .invoice-totals {
+        margin-top: 10mm;
+        padding-top: 5mm;
+        border-top: 2px solid black;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4mm;
+        font-size: 12pt;
+    }
+    .total-row {
+        display: flex;
+        gap: 30mm;
+    }
+    .total-row.grand {
+        font-size: 14pt;
+        font-weight: bold;
+        border-top: 1px solid black;
+        padding-top: 3mm;
+        margin-top: 3mm;
+    }
+
+    /* تذييل */
+    .invoice-footer {
+        margin-top: 15mm;
+        text-align: center;
+        font-size: 10pt;
+        border-top: 1px solid #ccc;
+        padding-top: 5mm;
+    }
+
+    /* العلامة المائية - ثابتة في المنتصف */
+    .invoice-watermark {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0.05 !important;
+        width: 60%;
+        max-width: 150mm;
+        z-index: 0;
+    }
+
+    /* أزرار التحكم (مخفية) */
+    .invoice-actions {
+        display: none !important;
+    }
+
+    /* إعادة ضبط تأثيرات الشاشة الصغيرة */
+    .print-invoice {
+        padding: 0 !important;
+    }
+    .invoice-header {
+        flex-direction: row !important; /* override responsive */
+        text-align: inherit !important;
+    }
+    .header-right, .header-left {
+        text-align: inherit !important;
+    }
+}
