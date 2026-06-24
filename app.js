@@ -16,7 +16,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 // ============================================================
-// DATA LAYER (Firebase Realtime Database)
+// المتغيرات العالمية
 // ============================================================
 const refInvoices = db.ref('invoices');
 const refCustomers = db.ref('customers');
@@ -33,38 +33,101 @@ let itemsCatalog = [];
 let currentEditingInvoiceId = null;
 let ignoreStatusChange = false;
 
-// تحميل أولي للبيانات من Firebase
-async function loadAllData() {
+// ============================================================
+// حالة الاتصال بالإنترنت
+// ============================================================
+let isOnline = navigator.onLine;
+window.addEventListener('online', () => {
+    isOnline = true;
+    showToast('تم استعادة الاتصال بالإنترنت. جاري المزامنة...', 'success');
+    syncToFirebase();
+});
+window.addEventListener('offline', () => {
+    isOnline = false;
+    showToast('أنت غير متصل بالإنترنت. البيانات ستحفظ محلياً.', 'error');
+});
+
+// ============================================================
+// دوال التخزين المحلي المساعدة
+// ============================================================
+function localGet(key, fallback) {
     try {
-        const snapInvoices = await refInvoices.once('value');
-        invoices = snapInvoices.val() || [];
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
+function localSet(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+}
 
-        const snapCustomers = await refCustomers.once('value');
-        customers = snapCustomers.val() || [];
-
-        const snapCounter = await refInvoiceCounter.once('value');
-        invoiceCounter = snapCounter.val() || 0;
-
-        const snapPayments = await refPayments.once('value');
-        paymentsLog = snapPayments.val() || [];
-
-        const snapCatalog = await refItemsCatalog.once('value');
-        itemsCatalog = snapCatalog.val() || [];
-
-        console.log('✅ تم تحميل جميع البيانات من Firebase');
-    } catch (error) {
-        console.error('❌ فشل تحميل البيانات من Firebase:', error);
-        showToast('فشل الاتصال بقاعدة البيانات', 'error');
+// ============================================================
+// طبقة البيانات الهجينة (Firebase + localStorage)
+// ============================================================
+async function loadAllData() {
+    if (navigator.onLine) {
+        try {
+            const snapInvoices = await refInvoices.once('value');
+            invoices = snapInvoices.val() || [];
+            const snapCustomers = await refCustomers.once('value');
+            customers = snapCustomers.val() || [];
+            const snapCounter = await refInvoiceCounter.once('value');
+            invoiceCounter = snapCounter.val() || 0;
+            const snapPayments = await refPayments.once('value');
+            paymentsLog = snapPayments.val() || [];
+            const snapCatalog = await refItemsCatalog.once('value');
+            itemsCatalog = snapCatalog.val() || [];
+            // حفظ نسخة محلية
+            saveLocalData();
+            console.log('✅ تم تحميل البيانات من Firebase');
+        } catch (error) {
+            console.error('❌ فشل تحميل البيانات من Firebase:', error);
+            loadLocalData();
+        }
+    } else {
+        loadLocalData();
     }
 }
 
-// حفظ جميع البيانات في Firebase
+function loadLocalData() {
+    invoices = localGet('invoices', []);
+    customers = localGet('customers', []);
+    invoiceCounter = localGet('invoiceCounter', 0);
+    paymentsLog = localGet('paymentsLog', []);
+    itemsCatalog = localGet('itemsCatalog', []);
+    console.log('📦 تم تحميل البيانات من التخزين المحلي');
+}
+
 function saveAll() {
-    refInvoices.set(invoices).catch(err => console.error('خطأ حفظ الفواتير:', err));
-    refCustomers.set(customers).catch(err => console.error('خطأ حفظ العملاء:', err));
-    refInvoiceCounter.set(invoiceCounter).catch(err => console.error('خطأ حفظ العداد:', err));
-    refPayments.set(paymentsLog).catch(err => console.error('خطأ حفظ الدفعات:', err));
-    refItemsCatalog.set(itemsCatalog).catch(err => console.error('خطأ حفظ كتالوج الأصناف:', err));
+    saveLocalData();
+    if (navigator.onLine) {
+        syncToFirebase();
+    } else {
+        localStorage.setItem('pendingSync', 'true');
+    }
+}
+
+function saveLocalData() {
+    localSet('invoices', invoices);
+    localSet('customers', customers);
+    localSet('invoiceCounter', invoiceCounter);
+    localSet('paymentsLog', paymentsLog);
+    localSet('itemsCatalog', itemsCatalog);
+}
+
+async function syncToFirebase() {
+    try {
+        await refInvoices.set(invoices);
+        await refCustomers.set(customers);
+        await refInvoiceCounter.set(invoiceCounter);
+        await refPayments.set(paymentsLog);
+        await refItemsCatalog.set(itemsCatalog);
+        localStorage.removeItem('pendingSync');
+        console.log('☁️ تمت المزامنة مع Firebase');
+    } catch (e) {
+        console.error('فشلت المزامنة:', e);
+    }
 }
 
 // ============================================================
@@ -660,7 +723,7 @@ document.getElementById('printArea').addEventListener('click', function (e) {
 });
 
 // ============================================================
-// توليد PDF
+// توليد PDF (مع أبعاد A4 ثابتة)
 // ============================================================
 async function convertImagesToBase64(container) {
     const images = container.querySelectorAll('img');
@@ -686,14 +749,22 @@ async function generatePDFBlob(invoiceNumber) {
     const element = document.getElementById('printInvoiceContent');
     const clone = element.cloneNode(true);
 
+    // إجبار الأبعاد على A4 (210mm x 297mm) بغض النظر عن الشاشة
+    clone.style.width = '210mm';
+    clone.style.minHeight = '297mm';
     clone.style.maxHeight = 'none';
     clone.style.overflow = 'visible';
     clone.style.height = 'auto';
-    clone.style.width = element.offsetWidth + 'px';
+    clone.style.margin = '0';
+    clone.style.padding = '0';
+    clone.style.boxSizing = 'border-box';
+    clone.style.backgroundColor = '#ffffff';
 
+    // إخفاء أزرار التحكم
     const btns = clone.querySelectorAll('.invoice-actions button');
     btns.forEach(b => b.style.display = 'none');
 
+    // وضعه خارج الشاشة
     clone.style.position = 'absolute';
     clone.style.top = '-9999px';
     document.body.appendChild(clone);
@@ -705,7 +776,9 @@ async function generatePDFBlob(invoiceNumber) {
         useCORS: true,
         allowTaint: false,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        width: 210 * 3.779527559,   // تحويل mm إلى px بدقة 96dpi
+        height: 297 * 3.779527559
     });
 
     document.body.removeChild(clone);
@@ -734,7 +807,6 @@ async function generatePDFBlob(invoiceNumber) {
     return pdf.output('blob');
 }
 
-// ✅ تم تعديل هذه الدالة فقط لإظهار الملف بدلاً من التحميل التلقائي
 async function savePDF(invoiceNumber) {
     try {
         showToast('⏳ جاري إنشاء ملف PDF...', 'success');
@@ -1208,8 +1280,13 @@ function updateHeaderTotal() {
 // بدء التشغيل
 // ============================================================
 async function init() {
-    // تحميل البيانات من Firebase
+    // تحميل البيانات (من Firebase أو محلياً)
     await loadAllData();
+
+    // عند بدء التشغيل، إذا كان هناك بيانات معلقة من جلسة سابقة وكان الاتصال متاحاً، نزامنها
+    if (navigator.onLine && localStorage.getItem('pendingSync') === 'true') {
+        await syncToFirebase();
+    }
 
     // تحميل الشعار (إن وجد)
     logoBase64 = await loadLogoAsBase64();
