@@ -78,7 +78,6 @@ async function loadAllData() {
             paymentsLog = snapPayments.val() || [];
             const snapCatalog = await refItemsCatalog.once('value');
             itemsCatalog = snapCatalog.val() || [];
-            // حفظ نسخة محلية
             saveLocalData();
             console.log('✅ تم تحميل البيانات من Firebase');
         } catch (error) {
@@ -723,7 +722,7 @@ document.getElementById('printArea').addEventListener('click', function (e) {
 });
 
 // ============================================================
-// توليد PDF (مع إصلاح رأس الفاتورة)
+// توليد PDF (جودة عالية مع هوامش بيضاء)
 // ============================================================
 async function convertImagesToBase64(container) {
     const images = container.querySelectorAll('img');
@@ -749,41 +748,37 @@ async function generatePDFBlob(invoiceNumber) {
     const element = document.getElementById('printInvoiceContent');
     const clone = element.cloneNode(true);
 
-    // إجبار الأبعاد على A4 (210mm x 297mm) بغض النظر عن الشاشة
+    // ========== إعدادات الحاوية مع هوامش بيضاء ==========
     clone.style.width = '210mm';
     clone.style.minHeight = '297mm';
     clone.style.maxHeight = 'none';
-    clone.style.overflow = 'visible';
+    clone.style.overflow = 'hidden';
     clone.style.height = 'auto';
     clone.style.margin = '0';
-    clone.style.padding = '0';
+    clone.style.padding = '15mm 12mm'; // هوامش: 15mm أعلى/أسفل، 12mm يمين/يسار
     clone.style.boxSizing = 'border-box';
     clone.style.backgroundColor = '#ffffff';
 
     // ========== إصلاح رأس الفاتورة ==========
     const invoiceHeader = clone.querySelector('.invoice-header');
     if (invoiceHeader) {
-        // تخطيط ثلاثي الأعمدة ثابت
         invoiceHeader.style.display = 'flex';
         invoiceHeader.style.flexDirection = 'row';
         invoiceHeader.style.justifyContent = 'space-between';
         invoiceHeader.style.alignItems = 'center';
         invoiceHeader.style.gap = '15px';
-        invoiceHeader.style.flexWrap = 'nowrap'; // منع الالتفاف
+        invoiceHeader.style.flexWrap = 'nowrap';
 
-        // العمود الأيمن
         const headerRight = invoiceHeader.querySelector('.header-right');
         if (headerRight) {
             headerRight.style.textAlign = 'right';
             headerRight.style.flex = '1';
         }
-        // العمود الأوسط
         const headerCenter = invoiceHeader.querySelector('.header-center');
         if (headerCenter) {
             headerCenter.style.flex = '0 0 auto';
             headerCenter.style.textAlign = 'center';
         }
-        // العمود الأيسر
         const headerLeft = invoiceHeader.querySelector('.header-left');
         if (headerLeft) {
             headerLeft.style.textAlign = 'left';
@@ -802,40 +797,81 @@ async function generatePDFBlob(invoiceNumber) {
 
     await convertImagesToBase64(clone);
 
+    // ========== التقاط الصورة بجودة عالية (scale: 3) ==========
     const canvas = await html2canvas(clone, {
-        scale: 2,
+        scale: 3,                // دقة عالية جداً
         useCORS: true,
         allowTaint: false,
         logging: false,
         backgroundColor: '#ffffff',
-        width: 210 * 3.779527559,   // تحويل mm إلى px بدقة 96dpi
-        height: 297 * 3.779527559
+        width: 210 * 3.779527559,  // عرض A4 بالبكسل
+        height: 297 * 3.779527559 * 1.5 // زيادة الارتفاع لاستيعاب المحتوى بدون قص
     });
 
     document.body.removeChild(clone);
 
-    const imgData = canvas.toDataURL('image/png');
+    // ========== إزالة الفراغ الزائد (إذا كان المحتوى قصيراً) ==========
+    const croppedCanvas = cropCanvas(canvas);
+
+    const imgData = croppedCanvas.toDataURL('image/jpeg', 0.95); // جودة عالية
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdf = new jsPDF('p', 'mm', 'a4', { compress: true });
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
 
     const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgHeight = (croppedCanvas.height * imgWidth) / croppedCanvas.width;
     let heightLeft = imgHeight;
     let position = 0;
 
-    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, Math.min(imgHeight, pdfHeight));
     heightLeft -= pdfHeight;
 
     while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
         heightLeft -= pdfHeight;
     }
 
     return pdf.output('blob');
+}
+
+// دالة لقص الهامش الفارغ أسفل الصورة
+function cropCanvas(canvas) {
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    let lastContentRow = 0;
+
+    for (let y = canvas.height - 1; y >= 0; y--) {
+        let rowHasContent = false;
+        for (let x = 0; x < canvas.width; x++) {
+            const idx = (y * canvas.width + x) * 4;
+            const r = pixels[idx];
+            const g = pixels[idx + 1];
+            const b = pixels[idx + 2];
+            if (r < 240 || g < 240 || b < 240) {
+                rowHasContent = true;
+                break;
+            }
+        }
+        if (rowHasContent) {
+            lastContentRow = y + 1;
+            break;
+        }
+    }
+
+    const minHeight = canvas.height * 0.5;
+    const newHeight = Math.max(lastContentRow, minHeight);
+
+    const newCanvas = document.createElement('canvas');
+    newCanvas.width = canvas.width;
+    newCanvas.height = newHeight;
+    const newCtx = newCanvas.getContext('2d');
+    newCtx.drawImage(canvas, 0, 0, canvas.width, newHeight, 0, 0, canvas.width, newHeight);
+
+    return newCanvas;
 }
 
 async function savePDF(invoiceNumber) {
@@ -843,11 +879,8 @@ async function savePDF(invoiceNumber) {
         showToast('⏳ جاري إنشاء ملف PDF...', 'success');
         const blob = await generatePDFBlob(invoiceNumber);
         const url = URL.createObjectURL(blob);
-        
-        // فتح الملف في نافذة جديدة لضمان رؤيته على جميع الأجهزة
         window.open(url, '_blank');
-        
-        showToast('✅ تم فتح ملف PDF. إذا لم يفتح، تحقق من التحميلات.');
+        showToast('✅ تم فتح ملف PDF');
     } catch (err) {
         showToast('❌ فشل إنشاء ملف PDF', 'error');
         console.error(err);
@@ -1311,19 +1344,15 @@ function updateHeaderTotal() {
 // بدء التشغيل
 // ============================================================
 async function init() {
-    // تحميل البيانات (من Firebase أو محلياً)
     await loadAllData();
 
-    // عند بدء التشغيل، إذا كان هناك بيانات معلقة من جلسة سابقة وكان الاتصال متاحاً، نزامنها
     if (navigator.onLine && localStorage.getItem('pendingSync') === 'true') {
         await syncToFirebase();
     }
 
-    // تحميل الشعار (إن وجد)
     logoBase64 = await loadLogoAsBase64();
     showSplash(logoBase64);
 
-    // إعداد النموذج
     document.getElementById('invDate').value = new Date().toISOString().split('T')[0];
     addItemRow();
     generateInvNumber();
