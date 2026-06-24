@@ -723,7 +723,7 @@ document.getElementById('printArea').addEventListener('click', function (e) {
 });
 
 // ============================================================
-// توليد PDF (مع أبعاد A4 ثابتة)
+// توليد PDF (مع إصلاح رأس الفاتورة)
 // ============================================================
 async function convertImagesToBase64(container) {
     const images = container.querySelectorAll('img');
@@ -759,6 +759,37 @@ async function generatePDFBlob(invoiceNumber) {
     clone.style.padding = '0';
     clone.style.boxSizing = 'border-box';
     clone.style.backgroundColor = '#ffffff';
+
+    // ========== إصلاح رأس الفاتورة ==========
+    const invoiceHeader = clone.querySelector('.invoice-header');
+    if (invoiceHeader) {
+        // تخطيط ثلاثي الأعمدة ثابت
+        invoiceHeader.style.display = 'flex';
+        invoiceHeader.style.flexDirection = 'row';
+        invoiceHeader.style.justifyContent = 'space-between';
+        invoiceHeader.style.alignItems = 'center';
+        invoiceHeader.style.gap = '15px';
+        invoiceHeader.style.flexWrap = 'nowrap'; // منع الالتفاف
+
+        // العمود الأيمن
+        const headerRight = invoiceHeader.querySelector('.header-right');
+        if (headerRight) {
+            headerRight.style.textAlign = 'right';
+            headerRight.style.flex = '1';
+        }
+        // العمود الأوسط
+        const headerCenter = invoiceHeader.querySelector('.header-center');
+        if (headerCenter) {
+            headerCenter.style.flex = '0 0 auto';
+            headerCenter.style.textAlign = 'center';
+        }
+        // العمود الأيسر
+        const headerLeft = invoiceHeader.querySelector('.header-left');
+        if (headerLeft) {
+            headerLeft.style.textAlign = 'left';
+            headerLeft.style.flex = '1';
+        }
+    }
 
     // إخفاء أزرار التحكم
     const btns = clone.querySelectorAll('.invoice-actions button');
