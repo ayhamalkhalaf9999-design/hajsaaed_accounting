@@ -722,7 +722,7 @@ document.getElementById('printArea').addEventListener('click', function (e) {
 });
 
 // ============================================================
-// توليد PDF (جودة عالية مع هوامش بيضاء)
+// توليد PDF (جودة عالية مع هوامش بيضاء وتخطيط ثابت)
 // ============================================================
 async function convertImagesToBase64(container) {
     const images = container.querySelectorAll('img');
@@ -759,7 +759,7 @@ async function generatePDFBlob(invoiceNumber) {
     clone.style.boxSizing = 'border-box';
     clone.style.backgroundColor = '#ffffff';
 
-    // ========== إصلاح رأس الفاتورة ==========
+    // ========== إصلاح رأس الفاتورة (تخطيط ثابت) ==========
     const invoiceHeader = clone.querySelector('.invoice-header');
     if (invoiceHeader) {
         invoiceHeader.style.display = 'flex';
