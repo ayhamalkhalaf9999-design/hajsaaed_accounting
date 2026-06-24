@@ -626,7 +626,7 @@ function editInvoice(id) {
 }
 
 // ============================================================
-// طباعة الفاتورة ومعاينة PDF
+// طباعة الفاتورة ومعاينة PDF (مع الترويسة المحسّنة)
 // ============================================================
 function printInvoice(id) {
     const inv = invoices.find(i => i.id === id);
@@ -673,19 +673,26 @@ function printInvoice(id) {
 
     const address = inv.address || (customers.find(c => c.name.toLowerCase() === inv.customer.toLowerCase()) || {}).address || 'غير محدد';
 
+    // تم تعديل الترويسة: خط أكبر وأزرق فاتح، مع تثبيت رقم وتاريخ الفاتورة أسفل العمودين فوق الخط الأزرق
     const html = `
         <div class="invoice-template">
             ${logoSrc ? `<div class="invoice-watermark"><img src="${logoSrc}" alt="علامة مائية"></div>` : ''}
             <div class="invoice-header">
-                <div class="header-right">
-                    <h2 style="color: #c00; font-size: 2rem; font-weight: 900;">سعيد ستندر</h2>
-                    <p>للصناعة والتجارة</p><p>قساطل - اكسسوارات صحية</p>
-                    <p class="invoice-number-header">رقم الفاتورة: ${inv.number}</p>
+                <div class="header-right" style="display:flex; flex-direction:column; justify-content:space-between;">
+                    <div>
+                        <h2 style="color: #c00; font-size: 2rem; font-weight: 900;">سعيد ستندر</h2>
+                        <p style="font-size:1.3rem; color: var(--primary); margin:2px 0;">للصناعة والتجارة</p>
+                        <p style="font-size:1.3rem; color: var(--primary); margin:2px 0;">قساطل - اكسسوارات صحية</p>
+                    </div>
+                    <p class="invoice-number-header" style="margin-top:auto;">رقم الفاتورة: ${inv.number}</p>
                 </div>
                 <div class="header-center">${logoImg}</div>
-                <div class="header-left">
-                    <p>اعزاز - غربي دوار الساعة</p><p>جانب كازية يا شام</p>
-                    <p class="invoice-date-header">تاريخ الفاتورة: ${formatDateDisplay(inv.date)}</p>
+                <div class="header-left" style="display:flex; flex-direction:column; justify-content:space-between;">
+                    <div>
+                        <p style="font-size:1.3rem; color: var(--primary); margin:2px 0;">اعزاز - غربي دوار الساعة</p>
+                        <p style="font-size:1.3rem; color: var(--primary); margin:2px 0;">جانب كازية يا شام</p>
+                    </div>
+                    <p class="invoice-date-header" style="margin-top:auto;">تاريخ الفاتورة: ${formatDateDisplay(inv.date)}</p>
                 </div>
             </div>
             <div class="customer-details">
@@ -765,7 +772,7 @@ async function generatePDFBlob(invoiceNumber) {
         invoiceHeader.style.display = 'flex';
         invoiceHeader.style.flexDirection = 'row';
         invoiceHeader.style.justifyContent = 'space-between';
-        invoiceHeader.style.alignItems = 'center';
+        invoiceHeader.style.alignItems = 'stretch'; // نعدل لـ stretch لتمديد الأعمدة
         invoiceHeader.style.gap = '15px';
         invoiceHeader.style.flexWrap = 'nowrap';
 
@@ -773,6 +780,9 @@ async function generatePDFBlob(invoiceNumber) {
         if (headerRight) {
             headerRight.style.textAlign = 'right';
             headerRight.style.flex = '1';
+            headerRight.style.display = 'flex';
+            headerRight.style.flexDirection = 'column';
+            headerRight.style.justifyContent = 'space-between';
         }
         const headerCenter = invoiceHeader.querySelector('.header-center');
         if (headerCenter) {
@@ -783,6 +793,9 @@ async function generatePDFBlob(invoiceNumber) {
         if (headerLeft) {
             headerLeft.style.textAlign = 'left';
             headerLeft.style.flex = '1';
+            headerLeft.style.display = 'flex';
+            headerLeft.style.flexDirection = 'column';
+            headerLeft.style.justifyContent = 'space-between';
         }
     }
 
