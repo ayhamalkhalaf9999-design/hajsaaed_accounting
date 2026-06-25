@@ -1,11 +1,12 @@
 // sw.js - Service Worker لدعم العمل دون إنترنت
-const CACHE_NAME = 'hajsaaed-accounting-v2';
+const CACHE_NAME = 'hajsaaed-accounting-v3';
 const urlsToCache = [
   '/hajsaaed_accounting/',
   '/hajsaaed_accounting/index.html',
   '/hajsaaed_accounting/style.css',
   '/hajsaaed_accounting/app.js',
-  '/hajsaaed_accounting/manifest.json'
+  '/hajsaaed_accounting/manifest.json',
+  '/hajsaaed_accounting/logo.png'       // ✅ تمت إضافة الشعار
 ];
 
 // تثبيت الـ Service Worker وتخزين الملفات الأساسية
