@@ -1,1 +1,33 @@
+name: Build Android APK
 
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Initialize Bubblewrap Project
+        run: |
+          bubblewrap init --manifest https://ayhamalkhalaf9999-design.github.io/hajsaaed_accounting/manifest.json --directory ./bubblewrap
+
+      - name: Build APK
+        run: |
+          cd bubblewrap
+          bubblewrap build
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-signed
+          path: bubblewrap/app/build/outputs/apk/release/app-release-signed.apk
