@@ -1,21 +1,27 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>برنامج المحاسبة - Accounting System</title>
 
-    <!-- مكتبات PDF والتقاط الصور -->
+    <script>
+        (function() {
+            try {
+                const theme = localStorage.getItem('theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
-    <!-- مكتبات Firebase (Realtime Database) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
-    <!-- رابط ملف الإعدادات PWA -->
     <link rel="manifest" href="manifest.json">
-
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -29,94 +35,78 @@
         </div>
     </div>
 
+    <!-- 🔒 شاشة القفل -->
+    <div id="unlock-screen" style="display:none; position:fixed; inset:0; background:var(--bg-base); z-index:99998; justify-content:center; align-items:center;">
+        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-lg); padding:40px; width:90%; max-width:380px; text-align:center; box-shadow:var(--shadow-xl);">
+            <div style="font-size:3.5rem; margin-bottom:16px;">🔒</div>
+            <h2 style="margin-bottom:8px; color:var(--text);">البرنامج مقفل</h2>
+            <p style="color:var(--text-secondary); margin-bottom:24px; font-size:0.9rem;">أدخل كلمة السر للمتابعة</p>
+            <input type="password" id="unlockInput" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="••••"
+                   onkeypress="if(event.key==='Enter') checkPassword()"
+                   style="width:100%; padding:16px; font-size:2rem; text-align:center; letter-spacing:0.5em; border:2px solid var(--border); border-radius:var(--radius); background:var(--surface-input); color:var(--text); font-family:monospace; margin-bottom:16px;">
+            <button class="btn btn-primary" onclick="checkPassword()" style="width:100%; padding:14px; font-size:1rem;">دخول</button>
+            <p id="unlockError" style="color:var(--danger); margin-top:16px; min-height:20px; font-size:0.85rem;"></p>
+        </div>
+    </div>
+
     <!-- المحتوى الرئيسي -->
     <div id="main-app" style="display:none;">
-        <!-- قوائم الاقتراحات -->
         <datalist id="itemSuggestions"></datalist>
         <datalist id="customerList"></datalist>
+        <datalist id="purchaseItemSuggestions"></datalist>
 
         <div class="app-container">
             <!-- HEADER -->
             <header class="app-header">
                 <h1><span>📊</span> نظام المحاسبة</h1>
-                <div class="header-total">
-                    إجمالي المبيعات: <strong id="headerTotalSales">0.00</strong> $
+                <div class="header-right-group">
+                    <div class="header-total">
+                        إجمالي المبيعات: <strong id="headerTotalSales">0.00</strong> $
+                    </div>
+                    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="تبديل الوضع الليلي/النهاري" title="تبديل الوضع">
+                        <span class="theme-icon">☀️</span>
+                    </button>
                 </div>
             </header>
 
             <!-- DASHBOARD CARDS -->
             <div class="dashboard-cards">
-                <div class="dash-card active" data-view="new-invoice">
-                    <div class="icon">🧾</div>
-                    <h3>فاتورة جديدة</h3>
-                </div>
-                <div class="dash-card" data-view="invoices">
-                    <div class="icon">📋</div>
-                    <h3>الفواتير</h3>
-                </div>
-                <div class="dash-card" data-view="customers">
-                    <div class="icon">👥</div>
-                    <h3>العملاء</h3>
-                </div>
-                <div class="dash-card" data-view="settings">
-                    <div class="icon">⚙️</div>
-                    <h3>الإعدادات</h3>
-                </div>
+                <div class="dash-card active" data-view="new-invoice"><div class="icon">🧾</div><h3>فاتورة جديدة</h3></div>
+                <div class="dash-card" data-view="purchase-invoice"><div class="icon">🛒</div><h3>فاتورة شراء</h3></div>
+                <div class="dash-card" data-view="invoices"><div class="icon">📋</div><h3>الفواتير</h3></div>
+                <div class="dash-card" data-view="customers"><div class="icon">👥</div><h3>العملاء</h3></div>
+                <div class="dash-card" data-view="materials"><div class="icon">📦</div><h3>المواد</h3></div>
+                <div class="dash-card" data-view="expenses"><div class="icon">💸</div><h3>المصاريف</h3></div>
+                <div class="dash-card" data-view="reports"><div class="icon">📊</div><h3>تقارير الأرباح</h3></div>
+                <div class="dash-card" data-view="settings"><div class="icon">⚙️</div><h3>الإعدادات</h3></div>
             </div>
 
-            <!-- TOAST -->
             <div class="toast" id="toast"></div>
 
-            <!-- ================ VIEW: NEW INVOICE ================ -->
+            <!-- VIEW: NEW INVOICE -->
             <div class="view active" id="view-new-invoice">
-                <div class="view-header">
-                    <h2>🧾 إنشاء فاتورة جديدة</h2>
-                </div>
+                <div class="view-header"><h2>🧾 إنشاء فاتورة جديدة</h2></div>
                 <div class="form-card">
                     <div class="form-grid">
-                        <div class="form-group">
-                            <label>اسم العميل</label>
-                            <input type="text" id="invCustomer" list="customerList" placeholder="أدخل اسم العميل">
-                        </div>
-                        <div class="form-group">
-                            <label>المقيم في</label>
-                            <input type="text" id="invAddress" placeholder="مكان الإقامة">
-                        </div>
-                        <div class="form-group">
-                            <label>التاريخ</label>
-                            <input type="date" id="invDate">
-                        </div>
-                        <div class="form-group">
-                            <label>رقم الفاتورة</label>
-                            <input type="text" id="invNumber" readonly style="background:#f5f5f5;">
-                        </div>
+                        <div class="form-group"><label>اسم العميل</label><input type="text" id="invCustomer" list="customerList" placeholder="أدخل اسم العميل"></div>
+                        <div class="form-group"><label>المقيم في</label><input type="text" id="invAddress" placeholder="مكان الإقامة"></div>
+                        <div class="form-group"><label>التاريخ</label><input type="date" id="invDate"></div>
+                        <div class="form-group"><label>رقم الفاتورة</label><input type="text" id="invNumber" readonly style="background:#f5f5f5;"></div>
                     </div>
-
-                    <!-- Items -->
                     <div class="items-section">
                         <h4>الأصناف</h4>
                         <div class="items-table-wrap">
                             <table class="items-table" id="itemsTable">
-                                <thead>
-                                    <tr>
-                                        <th style="width:18%;">الصنف</th>
-                                        <th style="width:10%;">الكيس</th>
-                                        <th style="width:12%;">عدد القطع</th>
-                                        <th style="width:10%;">الكمية</th>
-                                        <th style="width:12%;">السعر</th>
-                                        <th style="width:14%;">الإجمالي</th>
-                                        <th style="width:12%;">الخصم</th>
-                                        <th style="width:12%;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="itemsBody">
-                                    <!-- JS rows -->
-                                </tbody>
+                                <thead><tr>
+                                    <th style="width:18%;">الصنف</th><th style="width:10%;">الكيس</th><th style="width:12%;">عدد القطع</th>
+                                    <th style="width:10%;">الكمية</th><th style="width:12%;">السعر</th><th style="width:14%;">الإجمالي</th>
+                                    <th style="width:12%;">الخصم</th><th style="width:12%;"></th>
+                                </tr></thead>
+                                <tbody id="itemsBody"></tbody>
                             </table>
                         </div>
                         <button class="btn btn-outline btn-sm" onclick="addItemRow()" style="margin-top:8px;">➕ إضافة صنف</button>
                     </div>
-
                     <div class="invoice-summary">
                         <div class="summary-row"><label>المجموع:</label><span class="value" id="subtotalDisplay">0.00</span></div>
                         <div class="summary-row"><label>حسم (%):</label><input type="number" id="discountInput" value="0" min="0" max="100" step="0.01" style="width:80px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;"></div>
@@ -131,7 +121,6 @@
                         <div class="summary-row"><label>المدفوع:</label><input type="number" id="paymentInput" value="0" min="0" style="width:80px;padding:6px 10px;border:1px solid var(--border);border-radius:4px;"></div>
                         <div class="summary-row"><label>المتبقي:</label><span class="value grand" id="remainingDisplay">0.00</span></div>
                     </div>
-
                     <div class="form-actions">
                         <button class="btn btn-success" onclick="saveInvoice()">💾 حفظ الفاتورة</button>
                         <button class="btn btn-outline" onclick="clearInvoiceForm()">🔄 تفريغ</button>
@@ -139,7 +128,40 @@
                 </div>
             </div>
 
-            <!-- ================ VIEW: INVOICES ================ -->
+            <!-- VIEW: PURCHASE INVOICE -->
+            <div class="view" id="view-purchase-invoice">
+                <div class="view-header"><h2>🛒 إنشاء فاتورة شراء</h2></div>
+                <div class="form-card">
+                    <div class="form-grid">
+                        <div class="form-group"><label>اسم المورد</label><input type="text" id="purSupplier" placeholder="اسم المورد (اختياري)"></div>
+                        <div class="form-group"><label>التاريخ</label><input type="date" id="purDate"></div>
+                        <div class="form-group"><label>رقم الفاتورة</label><input type="text" id="purNumber" readonly style="background:#f5f5f5;"></div>
+                    </div>
+                    <div class="items-section">
+                        <h4>المواد المشتراة</h4>
+                        <div class="items-table-wrap">
+                            <table class="items-table">
+                                <thead><tr><th style="width:40%;">اسم المادة</th><th style="width:15%;">الكمية</th><th style="width:15%;">سعر الشراء</th><th style="width:20%;">الإجمالي</th><th style="width:10%;"></th></tr></thead>
+                                <tbody id="purItemsBody"></tbody>
+                            </table>
+                        </div>
+                        <button class="btn btn-outline btn-sm" onclick="addPurchaseItemRow()" style="margin-top:8px;">➕ إضافة مادة</button>
+                    </div>
+                    <div class="invoice-summary">
+                        <div class="summary-row"><label>الإجمالي الكلي:</label><span class="value grand" id="purTotalDisplay">0.00</span></div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-success" onclick="savePurchaseInvoice()">💾 حفظ الفاتورة</button>
+                        <button class="btn btn-outline" onclick="clearPurchaseForm()">🔄 تفريغ</button>
+                    </div>
+                </div>
+                <div class="form-card" style="margin-top:20px;">
+                    <h3 style="margin-bottom:16px;">📜 فواتير الشراء السابقة</h3>
+                    <div id="purchaseInvoicesContainer"></div>
+                </div>
+            </div>
+
+            <!-- VIEW: INVOICES -->
             <div class="view" id="view-invoices">
                 <div class="view-header">
                     <h2>📋 جميع الفواتير</h2>
@@ -150,11 +172,19 @@
                 <div class="table-card"><div id="invoicesContainer"></div></div>
             </div>
 
-            <!-- ================ VIEW: CUSTOMERS ================ -->
+            <!-- VIEW: CUSTOMERS -->
             <div class="view" id="view-customers">
                 <div class="view-header">
                     <h2>👥 إدارة العملاء والديون</h2>
                     <button class="btn btn-primary" onclick="openCustomerModal()">➕ إضافة عميل</button>
+                </div>
+                <div class="customer-filter-tabs" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+                    <button class="btn btn-primary btn-sm customer-filter-tab active" data-filter="debtors">
+                        🔴 عليهم دين (<span id="debtorsCount">0</span>)
+                    </button>
+                    <button class="btn btn-outline btn-sm customer-filter-tab" data-filter="paid">
+                        ✅ مسددين (<span id="paidCount">0</span>)
+                    </button>
                 </div>
                 <div class="stats-container" id="customerStatsContainer"></div>
                 <div class="table-card">
@@ -165,15 +195,87 @@
                 </div>
             </div>
 
-            <!-- ================ VIEW: SETTINGS ================ -->
-            <div class="view" id="view-settings">
+            <!-- VIEW: MATERIALS -->
+            <div class="view" id="view-materials">
                 <div class="view-header">
-                    <h2>⚙️ الإعدادات</h2>
+                    <h2>📦 إدارة المواد</h2>
+                    <button class="btn btn-primary" onclick="openMaterialModal()">➕ إضافة مادة جديدة</button>
+                </div>
+                <div class="stats-container" id="materialsStatsContainer"></div>
+                <div class="table-card">
+                    <div class="search-bar">
+                        <input type="text" id="materialSearch" placeholder="🔍 بحث باسم المادة..." oninput="renderMaterials()">
+                    </div>
+                    <div id="materialsContainer"></div>
+                </div>
+            </div>
+
+            <!-- VIEW: EXPENSES -->
+            <div class="view" id="view-expenses">
+                <div class="view-header">
+                    <h2>💸 إدارة المصاريف</h2>
+                    <button class="btn btn-primary" onclick="openExpenseModal()">➕ إضافة مصروف</button>
+                </div>
+                <div class="stats-container" id="expensesStatsContainer"></div>
+                <div class="table-card">
+                    <div class="search-bar">
+                        <input type="text" id="expenseSearch" placeholder="🔍 بحث باسم المصروف أو الفئة..." oninput="renderExpenses()">
+                    </div>
+                    <div id="expensesContainer"></div>
+                </div>
+            </div>
+
+            <!-- VIEW: REPORTS -->
+            <div class="view" id="view-reports">
+                <div class="view-header">
+                    <h2>📊 تقارير الأرباح</h2>
+                    <button class="btn btn-primary" onclick="printReport()">🖨️ طباعة التقرير</button>
+                </div>
+                <div class="form-card">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                        <button class="btn btn-primary btn-sm report-tab active" data-period="today">📅 اليوم</button>
+                        <button class="btn btn-outline btn-sm report-tab" data-period="week">📆 آخر 7 أيام</button>
+                        <button class="btn btn-outline btn-sm report-tab" data-period="month">🗓️ هذا الشهر</button>
+                        <button class="btn btn-outline btn-sm report-tab" data-period="custom">🎯 فترة مخصصة</button>
+                    </div>
+                    <div id="customDateRange" style="display:none; margin-top:15px;">
+                        <div class="form-grid">
+                            <div class="form-group"><label>من تاريخ</label><input type="date" id="reportFromDate"></div>
+                            <div class="form-group"><label>إلى تاريخ</label><input type="date" id="reportToDate"></div>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="renderReports()" style="margin-top:8px;">🔄 تحديث التقرير</button>
+                    </div>
+                </div>
+                <div id="reportHeaderContainer"></div>
+                <div class="stats-container" id="reportStatsContainer"></div>
+                <div id="reportDetailsContainer"></div>
+            </div>
+
+            <!-- VIEW: SETTINGS -->
+            <div class="view" id="view-settings">
+                <div class="view-header"><h2>⚙️ الإعدادات</h2></div>
+
+                <!-- 🔒 قسم كلمة السر -->
+                <div class="form-card">
+                    <h3>🔒 قفل البرنامج</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                        يمكنك حماية البرنامج بكلمة سر من 4 أرقام. لن يفتح البرنامج إلا بعد إدخالها.
+                        <br><strong style="color:var(--warning);">⚠️ احفظ كلمة السر في مكان آمن — لا توجد طريقة لاستعادتها إذا نسيتها.</strong>
+                    </p>
+                    <div id="passwordStatus" style="margin-bottom: 16px;"></div>
+                    <div class="form-actions" id="passwordActions"></div>
+                </div>
+
+                <div class="form-card">
+                    <h3>🎨 المظهر</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 16px;">اختر بين الوضع الليلي والنهاري.</p>
+                    <div class="form-actions">
+                        <button class="btn btn-outline" onclick="toggleTheme()">🌓 تبديل المظهر</button>
+                    </div>
                 </div>
                 <div class="form-card">
                     <h3>💾 النسخ الاحتياطي</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 16px;">يمكنك تصدير كافة البيانات أو استيرادها أو حذفها.</p>
-                    
                     <div class="form-actions">
                         <button class="btn btn-primary" onclick="exportBackup()">📤 تصدير البيانات</button>
                         <button class="btn btn-warning" onclick="document.getElementById('importFile').click()">📥 استيراد البيانات</button>
@@ -184,12 +286,10 @@
             </div>
         </div>
 
-        <!-- ===== PRINT INVOICE OVERLAY ===== -->
-        <div class="print-area" id="printArea">
-            <div class="print-invoice" id="printInvoiceContent"></div>
-        </div>
+        <div class="print-area" id="printArea"><div class="print-invoice" id="printInvoiceContent"></div></div>
+        <div class="print-area" id="statementArea"><div class="print-invoice" id="statementContent"></div></div>
 
-        <!-- ===== CUSTOMER ADD/EDIT MODAL ===== -->
+        <!-- Modal: عميل -->
         <div class="modal-overlay" id="customerModal">
             <div class="modal-box">
                 <button class="close-modal" onclick="closeCustomerModal()">✕</button>
@@ -205,7 +305,7 @@
             </div>
         </div>
 
-        <!-- ===== CUSTOMER DEBT MANAGEMENT MODAL ===== -->
+        <!-- Modal: تفاصيل دين -->
         <div class="modal-overlay" id="customerDebtModal">
             <div class="modal-box" style="max-width:950px; width:95%;">
                 <button class="close-modal" onclick="closeCustomerDebtModal()">✕</button>
@@ -213,23 +313,133 @@
             </div>
         </div>
 
-        <!-- ===== DELETE CONFIRM MODAL ===== -->
+        <!-- Modal: مادة -->
+        <div class="modal-overlay" id="materialModal">
+            <div class="modal-box">
+                <button class="close-modal" onclick="closeMaterialModal()">✕</button>
+                <h3 id="materialModalTitle">إضافة مادة جديدة</h3>
+                <input type="hidden" id="editMaterialIndex" value="">
+                <div class="form-group" style="margin-bottom:12px;"><label>اسم المادة *</label><input type="text" id="matName" placeholder="مثال: قسطل 4 إنش"></div>
+                <div class="form-group" style="margin-bottom:12px;"><label>سعر الشراء</label><input type="number" id="matPurchasePrice" placeholder="0.00" min="0" step="0.01"></div>
+                <div class="form-group" style="margin-bottom:12px;"><label>سعر البيع</label><input type="number" id="matSellingPrice" placeholder="0.00" min="0" step="0.01"></div>
+                <div class="form-group" style="margin-bottom:12px;"><label>المخزون الحالي</label><input type="number" id="matStock" placeholder="0" min="0" step="1"></div>
+                <div class="form-actions">
+                    <button class="btn btn-success" onclick="saveMaterial()">💾 حفظ</button>
+                    <button class="btn btn-outline" onclick="closeMaterialModal()">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: مصروف -->
+        <div class="modal-overlay" id="expenseModal">
+            <div class="modal-box">
+                <button class="close-modal" onclick="closeExpenseModal()">✕</button>
+                <h3 id="expenseModalTitle">إضافة مصروف جديد</h3>
+                <input type="hidden" id="editExpenseId" value="">
+                <div class="form-group" style="margin-bottom:12px;"><label>اسم المصروف *</label><input type="text" id="expName" placeholder="مثال: فاتورة كهرباء"></div>
+                <div class="form-group" style="margin-bottom:12px;"><label>المبلغ *</label><input type="number" id="expAmount" placeholder="0.00" min="0" step="0.01"></div>
+                <div class="form-group" style="margin-bottom:12px;"><label>التاريخ *</label><input type="date" id="expDate"></div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>الفئة</label>
+                    <select id="expCategory" style="padding:10px 14px;border:2px solid var(--border);border-radius:8px;background:#fff;width:100%;">
+                        <option value="عام">عام</option><option value="كهرباء">كهرباء</option><option value="ماء">ماء</option>
+                        <option value="إيجار">إيجار</option><option value="رواتب">رواتب</option><option value="نقل">نقل</option>
+                        <option value="صيانة">صيانة</option><option value="تسويق">تسويق</option><option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:12px;"><label>ملاحظات</label><textarea id="expNotes" placeholder="اختياري" style="min-height:60px;padding:10px 14px;border:2px solid var(--border);border-radius:8px;width:100%;"></textarea></div>
+                <div class="form-actions">
+                    <button class="btn btn-success" onclick="saveExpense()">💾 حفظ</button>
+                    <button class="btn btn-outline" onclick="closeExpenseModal()">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: عرض فاتورة شراء -->
+        <div class="modal-overlay" id="purchaseViewModal">
+            <div class="modal-box" style="max-width:700px; width:95%;">
+                <button class="close-modal" onclick="closePurchaseViewModal()">✕</button>
+                <div id="purchaseViewContent"></div>
+            </div>
+        </div>
+
+        <!-- Modal: تأكيد الحذف -->
         <div class="modal-overlay" id="deleteConfirmModal">
             <div class="modal-box">
                 <button class="close-modal" onclick="closeDeleteConfirmModal()">✕</button>
                 <h3>⚠️ تحذير حذف جميع البيانات</h3>
-                <p style="color: var(--danger); margin: 16px 0;">سيتم حذف جميع الفواتير، العملاء، الدفعات، والأصناف بشكل نهائي. لا يمكن التراجع عن هذه العملية.</p>
+                <p style="color: var(--danger); margin: 16px 0;">سيتم حذف جميع الفواتير، العملاء، الدفعات، الأصناف، المصاريف وفواتير الشراء بشكل نهائي. لا يمكن التراجع عن هذه العملية.</p>
                 <div class="form-actions">
                     <button class="btn btn-danger" onclick="executeDeleteAllData()">🗑️ حذف نهائي</button>
                     <button class="btn btn-outline" onclick="closeDeleteConfirmModal()">إلغاء</button>
                 </div>
             </div>
         </div>
+
+        <!-- 🔒 Modal: تعيين كلمة سر -->
+        <div class="modal-overlay" id="setPasswordModal">
+            <div class="modal-box">
+                <button class="close-modal" onclick="closeSetPasswordModal()">✕</button>
+                <h3>🔐 تعيين كلمة سر جديدة</h3>
+                <p style="color:var(--text-secondary); margin-bottom:16px; font-size:0.9rem;">اختر كلمة سر من 4 أرقام</p>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>كلمة السر (4 أرقام)</label>
+                    <input type="password" id="newPassword" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="••••" style="text-align:center; font-size:1.5rem; letter-spacing:0.3em; font-family:monospace;">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>تأكيد كلمة السر</label>
+                    <input type="password" id="confirmPassword" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="••••" style="text-align:center; font-size:1.5rem; letter-spacing:0.3em; font-family:monospace;">
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-success" onclick="savePassword()">💾 حفظ</button>
+                    <button class="btn btn-outline" onclick="closeSetPasswordModal()">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔒 Modal: تغيير كلمة سر -->
+        <div class="modal-overlay" id="changePasswordModal">
+            <div class="modal-box">
+                <button class="close-modal" onclick="closeChangePasswordModal()">✕</button>
+                <h3>🔐 تغيير كلمة السر</h3>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>كلمة السر الحالية</label>
+                    <input type="password" id="currentPassword" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="••••" style="text-align:center; font-size:1.5rem; letter-spacing:0.3em; font-family:monospace;">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>كلمة السر الجديدة</label>
+                    <input type="password" id="newPasswordChange" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="••••" style="text-align:center; font-size:1.5rem; letter-spacing:0.3em; font-family:monospace;">
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>تأكيد كلمة السر الجديدة</label>
+                    <input type="password" id="confirmPasswordChange" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="••••" style="text-align:center; font-size:1.5rem; letter-spacing:0.3em; font-family:monospace;">
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-success" onclick="saveChangedPassword()">💾 حفظ التغيير</button>
+                    <button class="btn btn-outline" onclick="closeChangePasswordModal()">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔒 Modal: إزالة كلمة سر -->
+        <div class="modal-overlay" id="removePasswordModal">
+            <div class="modal-box">
+                <button class="close-modal" onclick="closeRemovePasswordModal()">✕</button>
+                <h3>🔓 إزالة كلمة السر</h3>
+                <p style="color:var(--danger); margin-bottom:16px; font-size:0.9rem;">أدخل كلمة السر الحالية لتأكيد الإزالة</p>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>كلمة السر الحالية</label>
+                    <input type="password" id="removeCurrentPassword" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="••••" style="text-align:center; font-size:1.5rem; letter-spacing:0.3em; font-family:monospace;">
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-danger" onclick="confirmRemovePassword()">🗑️ إزالة نهائية</button>
+                    <button class="btn btn-outline" onclick="closeRemovePasswordModal()">إلغاء</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>
-    
-    <!-- تسجيل Service Worker لدعم العمل دون إنترنت -->
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/hajsaaed_accounting/sw.js')
